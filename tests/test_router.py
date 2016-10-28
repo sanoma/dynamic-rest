@@ -24,10 +24,10 @@ class TestDynamicRouter(APITestCase):
         )
 
     def test_get_canonical_path_with_prefix(self):
-        set_script_prefix('/v2/')
+        set_script_prefix('/my_prefix/')
         rsrc_key = DogSerializer().get_resource_key()
         self.assertEqual(
-            '/v2/dogs',
+            '/my_prefix/dogs',
             DynamicRouter.get_canonical_path(rsrc_key)
         )
         clear_script_prefix()
