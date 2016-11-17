@@ -8,6 +8,8 @@ from django.utils import six
 from django.utils.functional import cached_property
 from rest_framework import exceptions, fields, serializers
 from rest_framework.fields import SkipField
+from rest_framework.serializers import ModelSerializer
+from rest_framework.utils import model_meta
 from rest_framework.utils.serializer_helpers import ReturnDict, ReturnList
 
 from dynamic_rest.bases import DynamicSerializerBase
@@ -146,6 +148,17 @@ class WithDynamicSerializerMixin(WithResourceKeyMixin, DynamicSerializerBase):
             meta = type('Meta', (), {})
             cls.Meta = meta
         meta.list_serializer_class = DynamicListSerializer
+        # If a lookup field has been defined in the serializer that
+        # field becomes the ID field for the serializer
+        lookup_field = getattr(meta, 'lookup_field', None)
+        if lookup_field is not None:
+            model = getattr(cls.Meta, 'model')
+            info = model_meta.get_field_info(model)
+            # XXX: This might not be the way to correctly solve this
+            cls._declared_fields['id'] = \
+                ModelSerializer.serializer_field_mapping[
+                    type(info.fields[lookup_field])](source=lookup_field)
+
         return super(
             WithDynamicSerializerMixin, cls
         ).__new__(
@@ -508,8 +521,11 @@ class WithDynamicSerializerMixin(WithResourceKeyMixin, DynamicSerializerBase):
             Instance ID if the serializer is meant to represent its ID.
             Otherwise, a tagged data dict representation.
         """
+        lookup_field = getattr(self.Meta, 'lookup_field', 'pk')
+        pk_value = getattr(instance, lookup_field, None)
+
         if self.id_only():
-            return instance.pk
+            return pk_value
         else:
             if self.enable_optimization:
                 representation = self._faster_to_representation(instance)
@@ -531,7 +547,8 @@ class WithDynamicSerializerMixin(WithResourceKeyMixin, DynamicSerializerBase):
             representation,
             serializer=self,
             instance=instance,
-            embed=self.embed
+            embed=self.embed,
+            pk_value=pk_value
         )
 
     def to_internal_value(self, data):
@@ -608,6 +625,12 @@ class WithDynamicModelSerializerMixin(WithDynamicSerializerMixin):
         model = self.get_model()
 
         out = [model._meta.pk.name]  # get PK field name
+
+        # If a lookup field has been defined add it to id fields
+        # so it will be prefetched
+        lookup_field = getattr(self.Meta, 'lookup_field', None)
+        if lookup_field is not None:
+            out.append(lookup_field)
 
         # If this is being called, it means it
         # is a many-relation  to its parent.

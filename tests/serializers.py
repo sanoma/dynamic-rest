@@ -193,6 +193,19 @@ class UserSerializer(DynamicModelSerializer):
         return len(user.location.cat_set.all())
 
 
+class UserSerializerWithLookup(UserSerializer):
+    class Meta(UserSerializer.Meta):
+        lookup_field = 'name'
+
+    groups = DynamicRelationField(
+        'GroupSerializerWithLookup', many=True, deferred=True)
+
+
+class GroupSerializerWithLookup(GroupSerializer):
+    class Meta(GroupSerializer.Meta):
+        lookup_field = 'name'
+
+
 class ProfileSerializer(DynamicModelSerializer):
 
     class Meta:
